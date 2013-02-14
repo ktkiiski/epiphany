@@ -2,12 +2,12 @@
 class EpiDatabase
 {
   const MySql = 'mysql';
-  private static $instances = array(), $type, $name, $host, $user, $pass;
-  private $_type, $_name, $_host, $_user, $_pass;
+  private static $instances = array(), $type, $name, $host, $user, $pass, $charset;
+  private $_type, $_name, $_host, $_user, $_pass, $_charset;
   public $dbh;
   private function __construct(){}
   
-  public static function getInstance($type, $name, $host = 'localhost', $user = 'root', $pass = '')
+  public static function getInstance($type, $name, $host = 'localhost', $user = 'root', $pass = '', $charset = '')
   {
     $args = func_get_args();
     $hash = md5(implode('~', $args));
@@ -20,6 +20,7 @@ class EpiDatabase
     self::$instances[$hash]->_host = $host;
     self::$instances[$hash]->_user = $user;
     self::$instances[$hash]->_pass = $pass;
+    self::$instances[$hash]->_charset = $charset;
     return self::$instances[$hash];
   }
   
@@ -81,7 +82,7 @@ class EpiDatabase
     }
   }
 
-  public static function employ($type = null, $name = null, $host = 'localhost', $user = 'root', $pass = '')
+  public static function employ($type = null, $name = null, $host = 'localhost', $user = 'root', $pass = '', $charset = '')
   {
     if(!empty($type) && !empty($name))
     {
@@ -90,9 +91,10 @@ class EpiDatabase
       self::$host = $host;
       self::$user = $user;
       self::$pass = $pass;
+      self::$charset = $charset;
     }
 
-    return array('type' => self::$type, 'name' => self::$name, 'host' => self::$host, 'user' => self::$user, 'pass' => self::$pass);
+    return array('type' => self::$type, 'name' => self::$name, 'host' => self::$host, 'user' => self::$user, 'pass' => self::$pass, 'charset' => self::$charset);
   }
 
   private function prepare($sql, $params = array())
@@ -117,8 +119,11 @@ class EpiDatabase
 
     try
     {
-      $this->dbh = new PDO($this->_type . ':host=' . $this->_host . ';dbname=' . $this->_name, $this->_user, $this->_pass);
-      $this->dbh->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+      $options = array(PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION);
+      if (!empty($this->_charset)) {
+        $options[PDO::MYSQL_ATTR_INIT_COMMAND] = 'SET NAMES ' . $this->_charset;
+      }
+      $this->dbh = new PDO($this->_type . ':host=' . $this->_host . ';dbname=' . $this->_name, $this->_user, $this->_pass, $options);
     }
     catch(Exception $e)
     {
@@ -133,5 +138,5 @@ function getDatabase()
   if(empty($type) || empty($name) || empty($host) || empty($user))
     EpiException::raise(new EpiCacheTypeDoesNotExistException('Could not determine which database module to load', 404));
   else
-    return EpiDatabase::getInstance($type, $name, $host, $user, $pass);
+    return EpiDatabase::getInstance($type, $name, $host, $user, $pass, $charset);
 }
